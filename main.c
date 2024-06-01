@@ -1,223 +1,267 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
-#include "main.h"
 
-#include "cmsis_os.h"
-#include "usart.h"
-#include "gpio.h"
-#include "semphr.h"
-#include "task.h"
-#include "event_groups.h"
-#include "FreeRTOS.h"
-#include <string.h>
+  /* USER CODE BEGIN Header */
+  /**
+    ******************************************************************************
+    * @file           : main.c
+    * @brief          : Main program body
+    ******************************************************************************
+    * @attention
+    *
+    * Copyright (c) 2024 STMicroelectronics.
+    * All rights reserved.
+    *
+    * This software is licensed under terms that can be found in the LICENSE file
+    * in the root directory of this software component.
+    * If no LICENSE file comes with this software, it is provided AS-IS.
+    *
+    ******************************************************************************
+    */
+  /* USER CODE END Header */
+  /* Includes ------------------------------------------------------------------*/
+  #include "main.h"
 
-//#include "chat_helper_functions.h"
-#include <ctype.h>
-#include <stdio.h>
-
-QueueHandle_t uart_rx_queue;
-char uart_rx_char = 0;
-TaskHandle_t task1Handler;
-TaskHandle_t task2Handler;
-TaskHandle_t task3Handler;
-TaskHandle_t task4Handler;
-#define UART_RX_QUEUE_LENGTH 256
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-void SystemClock_Config(void);
+  #include "cmsis_os.h"
+  #include "usart.h"
+  #include "gpio.h"
+  #include "semphr.h"
+  #include "task.h"
+  #include "event_groups.h"
+  #include "FreeRTOS.h"
+  #include "dma.h"
+  #include "tim.h"
+  #include <string.h>
+  #include "led.h"
 
 
-/* USER CODE BEGIN PFP */
-void Task11();
-void Tasky();
-void GPIO_Init(void);
-uint8_t rxokay = 0;
-/* USER CODE END PFP */
+  //#include "chat_helper_functions.h"
+  #include <ctype.h>
+  #include <stdio.h>
+#define SET_COLOR 1
+#define SET_BRIGHTNESS 2
+TickType_t shortTimeOut = 50;
+  QueueHandle_t uart_rx_queue;
+  SemaphoreHandle_t xProcesses_packet_sema;
+  TaskHandle_t task1Handler;
+  TaskHandle_t task2Handler;
+  TaskHandle_t task3Handler;
+  TaskHandle_t task4Handler;
+  #define UART_RX_QUEUE_LENGTH 4
+  uint8_t datasentflag = 0;
+  uint8_t uart_rx_char = 0;
+  uint8_t Packet[5] = {0};
+  uint8_t Packet_Len = 0;
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+  /* Private includes ----------------------------------------------------------*/
+  /* USER CODE BEGIN Includes */
 
-/* USER CODE END 0 */
+  /* USER CODE END Includes */
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-  /* USER CODE BEGIN 1 */
-	BaseType_t retVal;	// used for checking task creation
-  /* USER CODE END 1 */
+  /* Private typedef -----------------------------------------------------------*/
+  /* USER CODE BEGIN PTD */
 
-  /* MCU Configuration--------------------------------------------------------*/
+  /* USER CODE END PTD */
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+  /* Private define ------------------------------------------------------------*/
+  /* USER CODE BEGIN PD */
 
-  /* USER CODE BEGIN Init */
+  /* USER CODE END PD */
 
-  /* USER CODE END Init */
+  /* Private macro -------------------------------------------------------------*/
+  /* USER CODE BEGIN PM */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+  /* USER CODE END PM */
 
-  /* USER CODE BEGIN SysInit */
+  /* Private variables ---------------------------------------------------------*/
 
-  /* USER CODE END SysInit */
+  /* USER CODE BEGIN PV */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART1_UART_Init();
-  GPIO_Init();
-  /* USER CODE BEGIN 2 */
+  /* USER CODE END PV */
 
-  /* USER CODE END 2 */
-
-  /* Init scheduler */
- // osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
-  //MX_FREERTOS_Init();
-
-  /* Start scheduler */
-  //osKernelStart();
+  /* Private function prototypes -----------------------------------------------*/
+  void SystemClock_Config(void);
 
 
-   retVal = xTaskCreate(Task11, "task1", configMINIMAL_STACK_SIZE , NULL, tskIDLE_PRIORITY + 1, &task1Handler);
-     if (retVal != pdPASS) {
+  /* USER CODE BEGIN PFP */
 
-  	   return 1;
-     }	// c
-     retVal = xTaskCreate(Tasky, "task2", configMINIMAL_STACK_SIZE  , NULL, tskIDLE_PRIORITY + 1, &task2Handler);
-         if (retVal != pdPASS) {
+  void Task11();
+  void Tasky();
+  void GPIO_Init(void);
+  uint8_t rxokay = 0;
 
-      	   return 1;
-         }	// c
+  //TIM_HandleTypeDef htim1;
+  //DMA_HandleTypeDef hdma_tim1_ch1;
 
+  /* USER CODE END PFP */
 
+  /* Private user code ---------------------------------------------------------*/
+  /* USER CODE BEGIN 0 */
 
-     vTaskStartScheduler();
+  /* USER CODE END 0 */
 
-  /* We should never get here as control is now taken by the scheduler */
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
+  /**
+    * @brief  The application entry point.
+    * @retval int
+    */
+  int main(void)
   {
-    /* USER CODE END WHILE */
+    /* USER CODE BEGIN 1 */
+  	BaseType_t retVal;	// used for checking task creation
+    /* USER CODE END 1 */
 
-    /* USER CODE BEGIN 3 */
+    /* MCU Configuration--------------------------------------------------------*/
+
+    /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+    HAL_Init();
+
+    /* USER CODE BEGIN Init */
+
+    /* USER CODE END Init */
+
+    /* Configure the system clock */
+    SystemClock_Config();
+
+    /* USER CODE BEGIN SysInit */
+
+    /* USER CODE END SysInit */
+
+    /* Initialize all configured peripherals */
+
+
+     MX_GPIO_Init();
+     MX_DMA_Init();
+     MX_USART1_UART_Init();
+     GPIO_Init();
+     MX_TIM1_Init();
+    /* USER CODE BEGIN 2 */
+
+    /* USER CODE END 2 */
+
+    /* Init scheduler */
+   // osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
+    //MX_FREERTOS_Init();
+
+    /* Start scheduler */
+    //osKernelStart();
+
+
+     retVal = xTaskCreate(Task11, "task1", configMINIMAL_STACK_SIZE *3 , NULL, tskIDLE_PRIORITY + 1, &task1Handler);
+       if (retVal != pdPASS) {
+
+    	   return 1;
+       }	// c
+       retVal = xTaskCreate(Tasky, "task2", configMINIMAL_STACK_SIZE  , NULL, tskIDLE_PRIORITY + 1, &task2Handler);
+           if (retVal != pdPASS) {
+
+        	   return 1;
+           }	// c
+
+       xProcesses_packet_sema = xSemaphoreCreateBinary();
+
+       vTaskStartScheduler();
+
+    /* We should never get here as control is now taken by the scheduler */
+    /* Infinite loop */
+    /* USER CODE BEGIN WHILE */
+    while (1)
+    {
+      /* USER CODE END WHILE */
+
+      /* USER CODE BEGIN 3 */
+    }
+    /* USER CODE END 3 */
   }
-  /* USER CODE END 3 */
-}
 
-void Task11()
-{
-	char received_char = 'x';
-	uint8_t buf_index = 0;
-	uint8_t counter = 0;
-
-	//uart_rx_queue = xQueueCreate(UART_RX_QUEUE_LENGTH, sizeof(char));
-	 /// __HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_RXNE);
-	  //  __HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_TC);
-
-	for(;;)
-	{
-		HAL_UART_Receive_IT(&huart1, &received_char, sizeof(received_char));
-		//requests 1 char from usart async
-
-		//HAL_UART_Receive(&huart1, &uart_rx_char,sizeof(uart_rx_char), HAL_MAX_DELAY);
-		//HAL_UART_Transmit(&huart1, "hellow", 10,HAL_MAX_DELAY);
-		if(received_char=='A')
-		{
-			while(counter <10){
-									 GPIOA->ODR ^= GPIO_ODR_OD5;
-									 vTaskDelay(100 / portTICK_PERIOD_MS);
-									 counter++;
-								 }
-			counter = 0;
+  void Task11()
+  {
 
 
-		}
-		received_char = 0;
-	}
-}
+  	RGB_Value current_color = {0};
+  	uint8_t brightness = 100;
+  	uint8_t packet[4] = { 0};
 
-void Tasky()
-{
-	uint32_t i = 0;
+  	//uart_rx_queue = xQueueCreate(UART_RX_QUEUE_LENGTH, sizeof(char));
+  	 /// __HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_RXNE);
+  	  //  __HAL_UART_CLEAR_FLAG(&huart1, UART_FLAG_TC);
 
 
-	for(;;)
-	{
-		//requests 1 char from usart async
-		vTaskDelay(100 );
-		i++;
-	}
-}
+  	set_led_color(0,0,0,1);
+  	for(;;)
+  	{
+  	 HAL_UART_Receive_IT(&huart1, &uart_rx_char, sizeof(uart_rx_char));
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	 if (huart == &huart1)
-	     {
-		    rxokay = 1;
-			//HAL_UART_Receive_IT(&huart1, &uart_rx_char, 1);
-	        //xQueueSendFromISR(uart_rx_queue, &uart_rx_char, pdFALSE);
-	    }
-}
-void GPIO_Init(void)
-{
-	// turn on clock to GPIOC
-	 // Enable the GPIOA clock (where LD2 is connected)
-	    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+  	 if(xSemaphoreTake(xProcesses_packet_sema, shortTimeOut) == pdTRUE)
+  	 {
+  		 switch(Packet[0])
+  		 {
+  		 	 case SET_COLOR:
+  		 		 current_color.red = Packet[1]; current_color.green = Packet[2]; current_color.blue = Packet[3];
+  		 	     set_led_color(current_color.red ,current_color.green,current_color.blue,brightness);
+  		 	     break;
 
-	    // Configure PA5 (LD2) as an output
-	    GPIOA->MODER &= ~(GPIO_MODER_MODE5_Msk);
-	    GPIOA->MODER |= GPIO_MODER_MODE5_0; // Output mode
-	    //random pin to toggle for counting task
-	    GPIOA->MODER &= ~(GPIO_MODER_MODE0_Msk);
-	   	    GPIOA->MODER |= GPIO_MODER_MODE0_0; // Output mode
+  		 	 case SET_BRIGHTNESS:
+  		 		brightness = Packet[1];
+  		 	     set_led_color(current_color.red ,current_color.green,current_color.blue,brightness);
+  		 	     break;
 
-}
+  		 	 default:
+  		 		 break;
+  		 }
+
+  		 Packet_Len = 0;
+  	  }
+  	 else
+  	  	 HAL_UART_Receive_IT(&huart1, &uart_rx_char, sizeof(uart_rx_char));
+
+  }
+  }
+  void Tasky()
+  {
+  	uint32_t i = 0;
+
+
+  	for(;;)
+  	{
+  		//requests 1 char from usart async
+  		vTaskDelay(1000 );
+  		i++;
+  	}
+  }
+
+  void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+  {
+  	HAL_TIM_PWM_Stop_DMA(&htim1, TIM_CHANNEL_1);
+  	datasentflag=1;
+  }
+  void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+  {
+  	 if (huart == &huart1)
+  	     {
+  		 	 if(Packet_Len<4)
+  		 	 {
+  		   	   Packet[Packet_Len] = uart_rx_char;
+  		   	   Packet_Len++;
+
+  		 	 }
+  		 	 else
+  		 	 {
+  		 		 BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  		 		 xSemaphoreGiveFromISR(xProcesses_packet_sema,xHigherPriorityTaskWoken);
+  		 	 }
+
+  	    }
+  }
+
+  void GPIO_Init(void)
+  {
+ 	    RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+  	    // Configure PA5 (LD2) as an output
+  	    GPIOA->MODER &= ~(GPIO_MODER_MODE5_Msk);
+  	    GPIOA->MODER |= GPIO_MODER_MODE5_0; // Output mode
+  	    //random pin to toggle for counting task
+  	    GPIOA->MODER &= ~(GPIO_MODER_MODE0_Msk);
+  	   	GPIOA->MODER |= GPIO_MODER_MODE0_0; // Output mode
+  }
+
 
 /**
   * @brief System Clock Configuration
@@ -242,7 +286,13 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 16;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -252,12 +302,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
